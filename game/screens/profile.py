@@ -13,14 +13,42 @@ from .. import config, content, mascot, storage, fx
 from ..widgets import Button
 
 
+def wrap_to_width(font, text, max_w, max_lines):
+    """ตัดข้อความให้อยู่ในความกว้าง max_w: ขึ้นบรรทัดใหม่ (ตามช่องว่างก่อน ถ้าไม่มีก็ตัดตามตัวอักษร - ภาษาไทยไม่มีช่องว่าง)
+    ไม่เกิน max_lines บรรทัด ถ้ายังไม่พอจะลงท้ายด้วย … จึงไม่มีทางล้นกรอบ"""
+    lines, cur = [], ""
+    for ch in text:
+        trial = cur + ch
+        if font.size(trial)[0] <= max_w or not cur:
+            cur = trial
+            continue
+        if ch == " ":                        # ตัดที่ช่องว่างพอดี
+            lines.append(cur); cur = ""
+        else:
+            if " " in cur.strip():           # ถอยไปตัดที่ช่องว่างล่าสุด ไม่ผ่ากลางคำอังกฤษ
+                head, _, tail = cur.rpartition(" ")
+                lines.append(head); cur = tail + ch
+            else:
+                lines.append(cur); cur = ch
+    if cur:
+        lines.append(cur)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last = lines[-1]
+        while last and font.size(last + "…")[0] > max_w:
+            last = last[:-1]
+        lines[-1] = last + "…"
+    return lines
+
+
 class ProfileScreen(Screen):
     def __init__(self, manager):
         super().__init__(manager)
         self.back_button = Button((30, 20, 140, 44), "< กลับ", sounds=manager.sounds,
                                    on_click=lambda: manager.go_to("dashboard"),
                                    base_color=config.COLOR_BG_LIGHT, hover_color=config.COLOR_ACCENT)
-        self.reset_button = Button((config.SCREEN_WIDTH - 220, 20, 190, 44), "รีเซ็ตความก้าวหน้า",
-                                    sounds=manager.sounds, on_click=self._ask_reset,
+        self.reset_button = Button((config.SCREEN_WIDTH - 250, 20, 220, 44), "รีเซ็ตความก้าวหน้า",
+                                    font=config.get_font(18, bold=True), sounds=manager.sounds, on_click=self._ask_reset,
                                     base_color=config.COLOR_DANGER, hover_color=(200, 60, 60))
 
         self.confirm_yes = Button((config.SCREEN_WIDTH // 2 - 210, 360, 180, 54), "ยืนยัน รีเซ็ต",
@@ -132,8 +160,8 @@ class ProfileScreen(Screen):
         # อัตโนมัติถ้าจำนวน Achievement เยอะจนแถวทั้งหมดจะสูงเกินพื้นที่ที่มี - รองรับการเพิ่ม
         # Achievement ในอนาคตได้เรื่อย ๆ โดยไม่ต้องกลับมาคำนวณเลย์เอาต์ใหม่ทุกครั้ง
         n = len(content.ACHIEVEMENTS)
-        box_w, box_h = 140, 84
-        col_gap, row_gap = 16, 14
+        box_h = 84
+        col_gap, row_gap = 12, 14
         margin = 20
         title_area_h = 42
         bottom_margin = 20  # เว้นระยะห่างจากขอบจอล่าง กันการ์ดชนขอบจอพอดี
@@ -144,13 +172,15 @@ class ProfileScreen(Screen):
         usable_w = ach_card_w - margin * 2
         available_h = config.SCREEN_HEIGHT - ach_card_y - bottom_margin
 
-        columns = max(1, min(n, (usable_w + col_gap) // (box_w + col_gap)))
+        # ช่องละไม่แคบกว่า 120px (อ่านชื่อได้) แต่ไม่เกิน 5 คอลัมน์ แล้วขยายความกว้างกล่องให้เต็มแถวพอดีกรอบ
+        columns = max(1, min(n, 5, (usable_w + col_gap) // (120 + col_gap)))
+        box_w = (usable_w - (columns - 1) * col_gap) // columns
         rows = -(-n // columns)  # ceil division ไม่ต้อง import math
 
         rows_h_budget = available_h - title_area_h - margin
         max_box_h_fit = (rows_h_budget - (rows - 1) * row_gap) / rows if rows > 0 else box_h
         if max_box_h_fit < box_h:
-            box_h = max(54, max_box_h_fit)  # ลดขนาดกล่องลงให้พอดีพื้นที่ แต่ไม่ให้เล็กจนอ่านไม่ออก
+            box_h = max(38, max_box_h_fit)  # ลดขนาดกล่องลงให้พอดีพื้นที่ แต่ไม่ให้เล็กจนอ่านไม่ออก
 
         ach_card_h = min(available_h, title_area_h + rows * box_h + (rows - 1) * row_gap + margin)
         ach_card = pygame.Rect(ach_card_x, ach_card_y, ach_card_w, int(ach_card_h))
@@ -168,7 +198,7 @@ class ProfileScreen(Screen):
         start_x = ach_card.x + margin
         ax, ay = start_x, ach_card.y + title_area_h
         box_w_i, box_h_i = int(box_w), int(box_h)
-        icon_size = max(22, min(34, int(box_h * 0.40)))
+        icon_size = max(18, min(34, int(box_h * 0.40)))
         for i, ach in enumerate(content.ACHIEVEMENTS):
             is_unlocked = ach.id in unlocked
             box = pygame.Rect(int(ax), int(ay), box_w_i, box_h_i)
@@ -185,8 +215,17 @@ class ProfileScreen(Screen):
                 pygame.draw.circle(surface, config.COLOR_LOCK, icon_center, icon_size // 2)
             small_font = config.get_font(13, bold=True)
             title_color = config.COLOR_TEXT if is_unlocked else config.COLOR_TEXT_MUTED
-            title_surf = small_font.render(ach.title, True, title_color)
-            surface.blit(title_surf, title_surf.get_rect(center=(box.centerx, box.y + int(box_h * 0.74))))
+            # ชื่อยาว: ขึ้น 2 บรรทัดในกล่อง (ไม่ล้นกรอบ) ชื่อสั้นอยู่กึ่งกลางบรรทัดเดียว
+            title_lines = wrap_to_width(small_font, ach.title, box_w - 16, 2 if box_h >= 70 else 1)
+            line_h = 16
+            if len(title_lines) == 1:
+                ys = [box.y + int(box_h * 0.74)]
+            else:
+                top = box.y + int(box_h * 0.55)
+                ys = [top + k * line_h + line_h // 2 for k in range(len(title_lines))]
+            for line, cy in zip(title_lines, ys):
+                title_surf = small_font.render(line, True, title_color)
+                surface.blit(title_surf, title_surf.get_rect(center=(box.centerx, cy)))
 
             self.achievement_rects.append((box, ach))
 
@@ -194,7 +233,7 @@ class ProfileScreen(Screen):
                 ax = start_x
                 ay += box_h + row_gap
             else:
-                ax += box_w + col_gap
+                ax += box_w + col_gap  # (ax คิดจาก box_w ที่ปรับให้พอดีแถวแล้ว)
 
         self.back_button.draw(surface)
         self.reset_button.draw(surface)
@@ -240,7 +279,8 @@ class ProfileScreen(Screen):
                     pygame.draw.circle(surface, config.COLOR_LOCK, icon_center, 23)
 
                 title_font = config.get_font(22, bold=True)
-                title_surf = title_font.render(ach.title, True, config.COLOR_TEXT)
+                title_line = wrap_to_width(title_font, ach.title, box.width - 40, 1)[0]
+                title_surf = title_font.render(title_line, True, config.COLOR_TEXT)
                 surface.blit(title_surf, title_surf.get_rect(center=(box.centerx, box.y + 108)))
 
                 status_font = config.get_font(15, bold=True)
@@ -255,7 +295,10 @@ class ProfileScreen(Screen):
                 surface.blit(cond_label_surf, cond_label_surf.get_rect(center=(box.centerx, box.y + 168)))
 
                 desc_font = config.get_font(17)
-                desc_surf = desc_font.render(ach.description, True, config.COLOR_TEXT)
-                surface.blit(desc_surf, desc_surf.get_rect(center=(box.centerx, box.y + 196)))
+                desc_lines = wrap_to_width(desc_font, ach.description, box.width - 48, 2)
+                first_y = box.y + 196 - (len(desc_lines) - 1) * 12
+                for k, line in enumerate(desc_lines):
+                    desc_surf = desc_font.render(line, True, config.COLOR_TEXT)
+                    surface.blit(desc_surf, desc_surf.get_rect(center=(box.centerx, first_y + k * 24)))
 
                 self.ach_close_button.draw(surface)

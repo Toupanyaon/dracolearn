@@ -59,6 +59,7 @@ dragonlearn/
 ├── README.md
 ├── save_data.json              # (สร้างอัตโนมัติตอนรันครั้งแรก)
 ├── test_content.py             # ทดสอบความถูกต้องของเนื้อหา (โจทย์/บทเรียน/ตัวเลือก/คลังโจทย์ Challenger)
+├── test_profile_layout.py      # ทดสอบเลย์เอาต์หน้าโปรไฟล์/ความสำเร็จไม่ล้นกรอบ
 ├── test_stats.py               # ทดสอบหน้าสถิติ (ข้อมูล/การคำนวณ/การวาด/เซฟเก่า)
 ├── test_challenger_hardcore.py # ทดสอบคอมโบ/ไอเท็ม/บอสของ Challenger
 ├── test_option_shuffle.py      # ทดสอบการสลับตำแหน่งตัวเลือก (โหมดปกติ + Challenger)
