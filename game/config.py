@@ -111,5 +111,6 @@ def get_font(size: int, bold: bool = False) -> pygame.font.Font:
             if name.replace(" ", "") in available:
                 chosen = name
                 break
-        _font_cache[key] = pygame.font.SysFont(chosen, size, bold=bold)
+        from .i18n import TFont  # นำเข้าตอนใช้งาน กัน import วน (i18n -> content)
+        _font_cache[key] = TFont(pygame.font.SysFont(chosen, size, bold=bold))  # ห่อให้แปลข้อความตามภาษาเมนู
     return _font_cache[key]

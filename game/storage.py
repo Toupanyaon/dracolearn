@@ -19,7 +19,7 @@ import os
 import secrets
 from datetime import date, timedelta
 
-from . import config
+from . import config, content
 
 XP_HISTORY_DAYS = 60  # เก็บประวัติ XP รายวันย้อนหลังกี่วัน (หน้าสถิติแสดง 7 วัน)
 
@@ -53,6 +53,9 @@ def default_profile(name: str = "ผู้เล่น") -> dict:
         "challenger_runs": 0,            # จำนวนรอบ Challenger ที่เล่นแล้ว
         "challenger_best_combo": 0,      # คอมโบสูงสุดที่เคยทำได้
         "challenger_bosses_beaten": 0,   # จำนวนบอสที่เคยล้ม
+        "course": content.DEFAULT_COURSE,  # คอร์สที่เรียนอยู่: "en" เรียนอังกฤษ / "th" เรียนไทย (ดู content.COURSES)
+        "survival_best_th": 0,           # int - สถิติ Challenger ของคอร์สภาษาไทย (คอร์สอังกฤษใช้ survival_best เดิม)
+        "survival_best_level_th": 0,
         "survival_best": 0,              # int - สถิติโหมด Challenger (จำนวนข้อที่ตอบถูกสูงสุดในหนึ่งรอบ)
         "survival_best_level": 0,        # int - ระดับความยากที่ไปถึงในรอบที่ทำสถิติ (ใช้ตัดสินเมื่อคะแนนเท่ากัน)
         "password_salt": None,           # str|None - สุ่มต่อโปรไฟล์ ใช้คู่กับ password_hash
@@ -219,19 +222,39 @@ def leaderboard(root: dict, limit: int = 8):
     return rows[:limit]
 
 
-def survival_leaderboard(root: dict, limit: int = 10):
+def survival_fields(course=None):
+    """ชื่อฟิลด์สถิติ Challenger (คะแนนสูงสุด, ระดับที่ไปถึง) ของคอร์สนั้น: แต่ละคอร์สแยกสถิติและตารางคะแนนกัน
+    คอร์สอังกฤษใช้ชื่อเดิม (เซฟเก่าใช้ต่อได้) คอร์สอื่นต่อท้ายด้วยรหัสคอร์ส"""
+    course = course if course in content.COURSES else content.COURSE
+    if course == content.DEFAULT_COURSE:
+        return "survival_best", "survival_best_level"
+    return f"survival_best_{course}", f"survival_best_level_{course}"
+
+
+def survival_stat(data: dict, course=None):
+    """(คะแนนสูงสุด, ระดับที่ไปถึง) ของโปรไฟล์ในคอร์สนั้น (ค่าเสียหายนับเป็น 0)"""
+    best_f, level_f = survival_fields(course)
+    def num(v):
+        return v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else 0
+    return num(data.get(best_f)), num(data.get(level_f))
+
+
+def survival_leaderboard(root: dict, limit: int = 10, course=None):
     """ตารางคะแนนของโหมด Challenger แยกจากตาราง XP: คืนลิสต์ (key, ชื่อ, ตอบถูกสูงสุด, ระดับที่ไปถึง)
     เรียงจากตอบถูกมากไปน้อย ถ้าเท่ากันดูระดับที่ไปถึง แล้วค่อยเรียงตามชื่อ
     คนที่ยังไม่เคยเล่นโหมดนี้ (สถิติ 0) จะไม่อยู่ในตาราง"""
-    rows = [(key, p.get("name", "?"), p.get("survival_best", 0), p.get("survival_best_level", 0))
-            for key, p in root["profiles"].items() if p.get("survival_best", 0) > 0]
+    rows = []
+    for key, p in root["profiles"].items():
+        best, level = survival_stat(p, course)
+        if best > 0:
+            rows.append((key, p.get("name", "?"), best, level))
     rows.sort(key=lambda r: (-r[2], -r[3], r[1].lower()))
     return rows[:limit]
 
 
-def survival_rank(root: dict, key: str):
+def survival_rank(root: dict, key: str, course=None):
     """คืน (อันดับ, จำนวนผู้เล่นในตาราง) ของโปรไฟล์นี้ในตารางโหมด Challenger หรือ None ถ้ายังไม่มีสถิติ"""
-    rows = survival_leaderboard(root, limit=len(root["profiles"]))
+    rows = survival_leaderboard(root, limit=len(root["profiles"]), course=course)
     for rank, row in enumerate(rows, start=1):
         if row[0] == key:
             return rank, len(rows)

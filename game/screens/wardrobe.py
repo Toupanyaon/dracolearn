@@ -43,7 +43,7 @@ class WardrobeScreen(Screen):
                                     hover_color=(150, 120, 255))
         self.undress_button = Button((48, 508, 234, 44), "ถอดทั้งหมด", font=side_font, sounds=manager.sounds,
                                      on_click=self._undress, base_color=config.COLOR_BG, hover_color=config.COLOR_LOCK)
-        self.back_button = Button((config.SCREEN_WIDTH - 170, 24, 140, 46), "กลับ", font=config.get_font(20, bold=True),
+        self.back_button = Button((config.SCREEN_WIDTH - 170, 24, 140, 46), "< กลับ", font=config.get_font(20, bold=True),
                                   sounds=manager.sounds, on_click=lambda: manager.go_to("dashboard"),
                                   base_color=config.COLOR_BG_LIGHT, hover_color=config.COLOR_ACCENT)
         self._dim_cache = {}
@@ -121,6 +121,8 @@ class WardrobeScreen(Screen):
 
     # ------------------------------------------------------------------
     def _wrap(self, text, font, max_width, max_lines=2):
+        from ..i18n import tr
+        text = tr(text)
         words, lines, cur = list(text), [], ""
         if " " in text:
             words = text.split(" ")

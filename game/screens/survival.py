@@ -155,7 +155,7 @@ class SurvivalScreen(LessonScreen):
         q = self._current_question()
         self.was_correct = content.is_correct_answer(q, self._submitted_answer_text())
         self.phase = "feedback"
-        self.manager.sounds.speak(self._answer_audio(q), lang="en")
+        self.manager.sounds.speak(self._answer_audio(q), lang=content.LEARN_LANG)
 
         data = self.manager.player_data
         storage.record_answer(data, q.id, self.was_correct, "challenger")  # สถิติหน้าสถิติ (นับรวมเป็นแถว Challenger)
@@ -285,9 +285,10 @@ class SurvivalScreen(LessonScreen):
     def _commit_best(self) -> bool:
         """อัปเดตสถิติสูงสุดของโปรไฟล์ถ้ารอบนี้ทำได้ดีกว่า คืน True ถ้าเป็นสถิติใหม่"""
         data = self.manager.player_data
-        if self.correct_count > data.get("survival_best", 0):
-            data["survival_best"] = self.correct_count
-            data["survival_best_level"] = self.level
+        best_f, level_f = storage.survival_fields()   # แต่ละคอร์สแยกสถิติกัน
+        if self.correct_count > storage.survival_stat(data)[0]:
+            data[best_f] = self.correct_count
+            data[level_f] = self.level
             return True
         return False
 
@@ -437,13 +438,13 @@ class SurvivalScreen(LessonScreen):
         fx.draw_card(surface, card)
         total = self.correct_count + self.wrong_count
         accuracy = int(self.correct_count / total * 100) if total else 0
-        best = self.manager.player_data.get("survival_best", 0)
+        best = storage.survival_stat(self.manager.player_data)[0]
         lines = [
             f"ตอบถูก {self.correct_count} ข้อ / ตอบผิด {self.wrong_count} ข้อ (แม่นยำ {accuracy}%)",
             f"ไปถึงระดับความยาก {self.level}/{content.DIFFICULTY_LEVELS} ({content.level_name(self.level)})",
             f"สถิติสูงสุด: {best} ข้อ",
         ]
-        rank = storage.survival_rank(self.manager.root, self.manager.current_profile_key)
+        rank = storage.survival_rank(self.manager.root, self.manager.current_profile_key, course=content.COURSE)
         if rank:
             lines.append(f"อันดับที่ {rank[0]} จาก {rank[1]} คนในตาราง Challenger")
         lines.append(f"คอมโบสูงสุด x{self.best_combo} · ล้มบอส {self.bosses_beaten} ตัว")

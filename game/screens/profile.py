@@ -16,6 +16,8 @@ from ..widgets import Button
 def wrap_to_width(font, text, max_w, max_lines):
     """ตัดข้อความให้อยู่ในความกว้าง max_w: ขึ้นบรรทัดใหม่ (ตามช่องว่างก่อน ถ้าไม่มีก็ตัดตามตัวอักษร - ภาษาไทยไม่มีช่องว่าง)
     ไม่เกิน max_lines บรรทัด ถ้ายังไม่พอจะลงท้ายด้วย … จึงไม่มีทางล้นกรอบ"""
+    from ..i18n import tr
+    text = tr(text)                          # แปลก่อนตัดบรรทัด (ตัดทีละตัวอักษรแล้วค่อยแปลจะแปลไม่ได้)
     lines, cur = [], ""
     for ch in text:
         trial = cur + ch

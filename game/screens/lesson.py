@@ -115,9 +115,19 @@ class LessonScreen(Screen):
         self.audio_unavailable = False
         if self._is_listening(q):
             # โจทย์ฟัง: เล่นเสียงให้ฟังอัตโนมัติ (ไม่อ่านตัวโจทย์ เพราะเป็นแค่คำสั่งสั้น ๆ) ถ้าเล่นไม่ได้ให้แสดงเป็นข้อความแทน
-            self.audio_unavailable = not self.manager.sounds.speak(q.audio_text, lang="en")
+            self.audio_unavailable = not self.manager.sounds.speak(q.audio_text, lang=content.LEARN_LANG)
         else:
-            self.manager.sounds.speak(content.prompt_for_speech(q.prompt), lang=q.prompt_lang)  # พูดทวนโจทย์ให้ฟังอัตโนมัติทุกครั้งที่ขึ้นคำถามใหม่ (ภาษาตาม q.prompt_lang: th/en)
+            text, lang = self._prompt_speech(q)
+            self.manager.sounds.speak(text, lang=lang)  # พูดทวนโจทย์ให้ฟังอัตโนมัติทุกครั้งที่ขึ้นคำถามใหม่ (ภาษาตาม q.prompt_lang: th/en)
+
+    @staticmethod
+    def _prompt_speech(q):
+        """(ข้อความ, ภาษา) ที่ใช้อ่านโจทย์ข้อนี้ออกเสียง: โจทย์ปกติอ่านตัวโจทย์ตามภาษาของโจทย์
+        แต่ข้อที่มี audio_text (เช่น คอร์สไทยที่โจทย์เป็นอังกฤษแต่มีคำไทยให้ฟัง) อ่านคำนั้นด้วยเสียงของภาษาที่เรียน
+        เพราะเสียงอังกฤษอ่านอักษรไทยไม่ได้"""
+        if q.audio_text and q.qtype not in ("listen_mcq", "listen_type"):
+            return q.audio_text, content.LEARN_LANG
+        return content.prompt_for_speech(q.prompt), q.prompt_lang
 
     def _visible_options(self, q):
         """ตัวเลือกที่แสดงจริง (โหมด Challenger ซ่อนตัวเลือกผิดได้ด้วยไอเท็ม 50:50) - หน้าบทเรียนปกติแสดงครบ"""
@@ -214,7 +224,7 @@ class LessonScreen(Screen):
         q = self._current_question()
         self.was_correct = content.is_correct_answer(q, self._submitted_answer_text())  # รองรับคำตอบหลายรูปแบบ (ดู content.py)
         self.phase = "feedback"
-        self.manager.sounds.speak(self._answer_audio(q), lang="en")  # พูดออกเสียงคำตอบที่ถูกต้องให้ฟังทันทีหลังตรวจ (โจทย์ฟังใช้ audio_text)
+        self.manager.sounds.speak(self._answer_audio(q), lang=content.LEARN_LANG)  # พูดออกเสียงคำตอบที่ถูกต้องให้ฟังทันทีหลังตรวจ (โจทย์ฟังใช้ audio_text)
 
         data = self.manager.player_data
         storage.record_answer(data, q.id, self.was_correct, content.unit_id_of_question(q.id))  # สถิติหน้าสถิติ
@@ -275,8 +285,8 @@ class LessonScreen(Screen):
         - อ่านเฉพาะข้อความภาษาอังกฤษ (ตัวเลือกภาษาไทยข้าม เพราะเครื่องส่วนใหญ่ไม่มีเสียงไทย)
         - ถ้าปิดเสียง/ไม่มีระบบเสียงพูด จะเงียบไปเฉย ๆ ไม่เด้งแจ้งเตือน (กดบ่อย ๆ จะรำคาญ)
         - speak() ตัดเสียงเก่าที่ยังพูดค้างให้เอง กดรัว ๆ จึงได้ยินคำล่าสุดเสมอ"""
-        if text and text.isascii() and self._read_words_enabled():
-            self.manager.sounds.speak(text, lang="en")
+        if text and content.detect_lang(text) == content.LEARN_LANG and self._read_words_enabled():
+            self.manager.sounds.speak(text, lang=content.LEARN_LANG)
 
     def _read_words_enabled(self) -> bool:
         return bool(self.manager.player_data.get("read_words_on_tap", True))
@@ -297,13 +307,14 @@ class LessonScreen(Screen):
         if self._is_listening(q):
             self._replay_audio()  # โจทย์ฟัง: ปุ่ม "ฟังอีกครั้ง" เล่นเสียงของข้อนั้นซ้ำ ไม่อ่านคำสั่งโจทย์
             return
-        spoke = self.manager.sounds.speak(content.prompt_for_speech(q.prompt), lang=q.prompt_lang)
+        text, lang = self._prompt_speech(q)
+        spoke = self.manager.sounds.speak(text, lang=lang)
         if not spoke:
             if not self.manager.sounds.enabled:
                 self.manager.toast.show("เสียงถูกปิดอยู่ (สามารถเปิดเสียงได้ที่หน้าตั้งค่า)")
             elif not self.manager.sounds.tts_available:
                 self.manager.toast.show("ไม่พบระบบเสียงพูดในเครื่องนี้ (ลองติดตั้ง pyttsx3)")
-            elif q.prompt_lang == "th" and not self.manager.sounds.thai_voice_available:
+            elif lang == "th" and not self.manager.sounds.thai_voice_available:
                 self.manager.toast.show("เครื่องนี้ไม่มีเสียงพูดภาษาไทยติดตั้งไว้ จึงอ่านโจทย์ภาษาไทยไม่ได้ "
                                          "(ลองเพิ่มที่ Windows Settings > Time & Language > Speech)")
 
@@ -312,18 +323,21 @@ class LessonScreen(Screen):
         q = self._current_question()
         if not self._is_listening(q):
             return
-        spoke = self.manager.sounds.speak(q.audio_text, lang="en")
+        spoke = self.manager.sounds.speak(q.audio_text, lang=content.LEARN_LANG)
         self.audio_unavailable = not spoke
         if not spoke:
             if not self.manager.sounds.enabled:
                 self.manager.toast.show("เสียงถูกปิดอยู่ จึงแสดงคำที่ต้องฟังเป็นข้อความแทน")
             elif not self.manager.sounds.tts_available:
                 self.manager.toast.show("ไม่พบระบบเสียงพูดในเครื่องนี้ จึงแสดงคำที่ต้องฟังเป็นข้อความแทน")
+            elif content.LEARN_LANG == "th" and not self.manager.sounds.thai_voice_available:
+                self.manager.toast.show("เครื่องนี้ไม่มีเสียงพูดภาษาไทยติดตั้งไว้ จึงอ่านโจทย์ภาษาไทยไม่ได้ "
+                                         "(ลองเพิ่มที่ Windows Settings > Time & Language > Speech)")
 
     def _speak_current(self):
         """พูดออกเสียงคำ/ประโยคภาษาอังกฤษที่ถูกต้องของข้อนี้ (โชว์ปุ่มนี้เฉพาะหลังตอบแล้ว กันสปอยล์คำตอบ)"""
         q = self._current_question()
-        spoke = self.manager.sounds.speak(self._answer_audio(q), lang="en")
+        spoke = self.manager.sounds.speak(self._answer_audio(q), lang=content.LEARN_LANG)
         if not spoke:
             if not self.manager.sounds.enabled:
                 self.manager.toast.show("เสียงถูกปิดอยู่ (สามารถเปิดเสียงได้ที่หน้าตั้งค่า)")

@@ -87,7 +87,7 @@ class SummaryScreen(Screen):
                             word = shown[i]
                             self.vocab_buttons.append(Button(
                                 (x, y, widths[i], btn_h), labels[i], font=font, sounds=self.manager.sounds,
-                                on_click=lambda w=word: self.manager.sounds.speak(w),
+                                on_click=lambda w=word: self.manager.sounds.speak(w, lang=content.LEARN_LANG),
                                 base_color=config.COLOR_BG_LIGHT, hover_color=config.COLOR_ACCENT))
                             x += widths[i] + gap_x
                         y += btn_h + gap_y

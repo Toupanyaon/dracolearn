@@ -33,8 +33,8 @@ class ChallengerBoardScreen(Screen):
 
     def on_enter(self):
         self.time = 0.0
-        self.rows = storage.survival_leaderboard(self.manager.root, limit=TOP_N)
-        self.my_rank = storage.survival_rank(self.manager.root, self.manager.current_profile_key)
+        self.rows = storage.survival_leaderboard(self.manager.root, limit=TOP_N, course=content.COURSE)
+        self.my_rank = storage.survival_rank(self.manager.root, self.manager.current_profile_key, course=content.COURSE)
 
     def handle_event(self, event):
         self.back_button.handle_event(event)
@@ -95,7 +95,7 @@ class ChallengerBoardScreen(Screen):
             surface.blit(note, note.get_rect(center=(center_x, board.bottom - 22)))
         elif self.my_rank[0] > TOP_N:
             note_font = config.get_font(16, bold=True)
-            best = self.manager.player_data.get("survival_best", 0)
+            best = storage.survival_stat(self.manager.player_data)[0]
             note = note_font.render(f"คุณอยู่อันดับที่ {self.my_rank[0]} จาก {self.my_rank[1]} คน ({best} ข้อ)",
                                      True, config.COLOR_SECONDARY)
             surface.blit(note, note.get_rect(center=(center_x, board.bottom - 22)))

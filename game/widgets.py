@@ -85,6 +85,14 @@ class Button:
             pygame.draw.rect(surface, config.COLOR_WHITE, draw_rect, width=2, border_radius=16)
 
         text_surf = self.font.render(self.text, True, text_color)
+        max_w = max(1, draw_rect.width - 14)
+        if text_surf.get_width() > max_w:     # ข้อความยาวกว่าปุ่ม (เช่น เมนูอังกฤษยาวกว่าไทย): ย่อให้พอดี ไม่ล้นกรอบ
+            ratio = max_w / text_surf.get_width()
+            new_size = (max_w, max(1, int(text_surf.get_height() * ratio)))
+            try:
+                text_surf = pygame.transform.smoothscale(text_surf, new_size)
+            except (ValueError, pygame.error):
+                text_surf = pygame.transform.scale(text_surf, new_size)
         surface.blit(text_surf, text_surf.get_rect(center=draw_rect.center))
 
 
@@ -218,6 +226,8 @@ class Toast:
 
     @staticmethod
     def _wrap_message(message: str, font: pygame.font.Font, max_width: int) -> list:
+        from .i18n import tr
+        message = tr(message)
         lines = []
         for paragraph in message.splitlines() or [""]:
             line = ""

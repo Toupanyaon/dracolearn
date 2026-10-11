@@ -8,7 +8,7 @@ ScreenManager: ถือ "ข้อมูลทุกโปรไฟล์" (sel
 
 import pygame
 
-from .. import storage, mascot, wardrobe
+from .. import storage, mascot, wardrobe, content
 
 
 class Screen:
@@ -52,6 +52,7 @@ class ScreenManager:
         self.sounds.set_speech_rate(self.player_data.get("speech_rate", 1.0))
 
         self.apply_outfit()
+        self.apply_course()
 
         self.screens = {}
         self.current_key = None
@@ -61,6 +62,21 @@ class ScreenManager:
 
         # ข้อมูลชั่วคราวที่ส่งต่อระหว่างหน้าจอ (เช่น lesson ที่กำลังจะเล่น, ผลสรุปล่าสุด)
         self.context = {}
+
+    def apply_course(self):
+        """ใช้คอร์สที่ผู้เล่นปัจจุบันเลือกไว้ (เปลี่ยนเนื้อหา/ภาษาเมนูทั้งเกม) ค่าในเซฟที่ผิดปกติถอยเป็นคอร์สอังกฤษ"""
+        data = self.player_data
+        code = content.set_course(content.course_of_profile(data))
+        data["course"] = code
+        return code
+
+    def switch_course(self, code=None):
+        """สลับคอร์ส (ไม่ระบุ = คอร์สถัดไป) แล้วบันทึกลงโปรไฟล์ คืนรหัสคอร์สใหม่"""
+        code = code if code in content.COURSES else content.next_course(content.COURSE)
+        self.player_data["course"] = code
+        self.apply_course()
+        self.save()
+        return content.COURSE
 
     def apply_outfit(self):
         """ให้มาสคอตทุกหน้าใส่ชุดของผู้เล่นที่ active อยู่ (เรียกตอนเริ่มเกม/สลับโปรไฟล์/ออกจากระบบ/เปลี่ยนชุด)
@@ -81,6 +97,7 @@ class ScreenManager:
         self.sounds.set_music_volume(profile.get("music_volume", 0.4))
         self.sounds.set_speech_rate(profile.get("speech_rate", 1.0))
         self.apply_outfit()
+        self.apply_course()
         self.save()
         return profile
 
@@ -95,6 +112,7 @@ class ScreenManager:
         self.sounds.set_music_volume(0.4)
         self.sounds.set_speech_rate(1.0)
         self.apply_outfit()  # หน้าล็อกอินใช้ชุดเริ่มต้น (ไม่เอาชุดของคนที่เพิ่งออกไปมาโชว์)
+        self.apply_course()  # หน้าล็อกอินกลับเป็นคอร์ส/เมนูเริ่มต้น
         self.go_to("home")
 
     def quit_game(self):

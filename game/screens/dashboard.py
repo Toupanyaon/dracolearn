@@ -56,6 +56,10 @@ class DashboardScreen(Screen):
         self.stats_button = Button((470, 88, 220, 48), "สถิติการเรียน", font=config.get_font(20, bold=True),
                                     sounds=manager.sounds, on_click=lambda: manager.go_to("stats"),
                                     base_color=config.COLOR_BG_LIGHT, hover_color=config.COLOR_ACCENT)
+        # ปุ่มสลับภาษาที่เรียน (อังกฤษ <-> ไทย) อยู่ใต้ชื่อผู้เล่น เหนือการ์ดสถานะ - ข้อความอัปเดตตามคอร์สตอนวาด
+        self.course_button = Button((24, 68, 330, 38), "", font=config.get_font(16, bold=True),
+                                     sounds=manager.sounds, on_click=self._switch_course,
+                                     base_color=config.COLOR_BG_LIGHT, hover_color=config.COLOR_ACCENT)
         self.mascot_rect = pygame.Rect(config.SCREEN_WIDTH - 175, 66, 110, 160)
 
         self.xp_bar = ProgressBar((40, 175, 340, 22))
@@ -71,6 +75,17 @@ class DashboardScreen(Screen):
                 self.manager.toast.show(f"ปลดล็อกของแต่งตัวใหม่ {len(fresh)} ชิ้น!{extra} กด \"แต่งตัวมาสคอต\" เพื่อสวม",
                                         duration=4.0)
             self.manager.sounds.play_achievement()
+
+    def _switch_course(self):
+        code = self.manager.switch_course()
+        name = content.COURSES[code]["name"]
+        if self.manager.toast is not None:
+            msg = f"คอร์สที่เรียน: {name}" if code == "en" else f"Now learning: {name}"
+            snd = self.manager.sounds
+            if code == "th" and snd.enabled and not snd.thai_voice_available:
+                msg += " (no Thai voice installed, so audio is shown as text)"   # เตือนครั้งเดียวตอนสลับมาคอร์สไทย
+            self.manager.toast.show(msg, duration=3.5)
+        self.manager.sounds.play_achievement()
 
     def _next_lesson(self):
         data = self.manager.player_data
@@ -92,7 +107,8 @@ class DashboardScreen(Screen):
 
     def handle_event(self, event):
         for btn in (self.path_button, self.continue_button, self.survival_button, self.board_button,
-                    self.profile_button, self.settings_button, self.wardrobe_button, self.stats_button):
+                    self.profile_button, self.settings_button, self.wardrobe_button, self.stats_button,
+                    self.course_button):
             btn.handle_event(event)
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and self.mascot_rect.collidepoint(event.pos):
             self.manager.sounds.play_click()
@@ -145,7 +161,7 @@ class DashboardScreen(Screen):
             surface.blit(label, (72, qy - 2))
             qy += 34
 
-        best = data.get("survival_best", 0)
+        best = storage.survival_stat(data)[0]
         self.survival_button.text = f"โหมด Challenger ({best} ข้อ)" if best else "โหมด Challenger"
         self.survival_button.draw(surface)
         self.board_button.draw(surface)
@@ -155,6 +171,9 @@ class DashboardScreen(Screen):
         self.settings_button.draw(surface)
         self.wardrobe_button.draw(surface)
         self.stats_button.draw(surface)
+        self.course_button.text = ("ภาษาที่เรียน: อังกฤษ (กดเพื่อเปลี่ยน)" if content.COURSE == "en"
+                                   else "ภาษาที่เรียน: ไทย (กดเพื่อเปลี่ยน)")
+        self.course_button.draw(surface)
 
         # --- ตารางคะแนนของจริง: ดึงจากผู้เล่นทุกคนที่เคยเล่นเกมนี้บนเครื่องนี้ ---
         board_rect = pygame.Rect(470, 230, 400, 380)

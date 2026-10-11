@@ -8,7 +8,7 @@ achievements.py
 
 from typing import List
 
-from . import config, content, wardrobe
+from . import config, content, storage, wardrobe
 
 
 def check_achievements(data: dict, perfect_lesson: bool = False) -> List[str]:
@@ -17,7 +17,10 @@ def check_achievements(data: dict, perfect_lesson: bool = False) -> List[str]:
     newly = []
 
     level = config.level_from_xp(data.get("total_xp", 0))
-    total_lessons = len(content.all_lessons_flat())
+    lesson_ids = {lesson.id for _, lesson in content.all_lessons_flat()}
+    total_lessons = len(lesson_ids)
+    done_here = len(lesson_ids & set(data.get("completed_lessons", [])))  # นับเฉพาะบทของคอร์สที่เรียนอยู่
+    best_level = max(storage.survival_stat(data, c)[1] for c in content.COURSES)  # ถึงระดับสูงสุดในคอร์สไหนก็นับ
     wardrobe_unlocked, wardrobe_total = wardrobe.unlocked_count(data)
 
     checks = {
@@ -27,10 +30,10 @@ def check_achievements(data: dict, perfect_lesson: bool = False) -> List[str]:
         "perfect_lesson": perfect_lesson,
         "five_lessons": data.get("lessons_finished_count", 0) >= 5,
         # --- เพิ่มใหม่ ---
-        "all_lessons": len(data.get("completed_lessons", [])) >= total_lessons,
+        "all_lessons": done_here >= total_lessons,
         "streak_7": data.get("streak", 0) >= 7,
         "xp_1000": data.get("total_xp", 0) >= 1000,
-        "survival_legend": data.get("survival_best_level", 0) >= content.DIFFICULTY_LEVELS,
+        "survival_legend": best_level >= content.DIFFICULTY_LEVELS,
         "wardrobe_complete": wardrobe_unlocked >= wardrobe_total,
     }
 

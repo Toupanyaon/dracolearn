@@ -10,7 +10,7 @@ screens/stats.py
 import pygame
 
 from .base import Screen
-from .. import config, fx, stats
+from .. import config, fx, stats, i18n
 from ..widgets import Button
 
 XP_CARD = pygame.Rect(30, 96, 424, 262)
@@ -117,7 +117,7 @@ class StatsScreen(Screen):
                 if self.anim >= 1.0:
                     v = small.render(str(d.xp), True, config.COLOR_TEXT)
                     surface.blit(v, v.get_rect(midbottom=(cx, plot.bottom - h - 2)))
-            lab = small.render("วันนี้" if d.is_today else d.label, True,
+            lab = small.render(i18n.pick("วันนี้", "Today") if d.is_today else (d.label if i18n.ui_lang() == "th" else stats.WEEKDAYS_EN[d.day.weekday()]), True,
                                config.COLOR_SECONDARY if d.is_today else config.COLOR_TEXT_MUTED)
             surface.blit(lab, lab.get_rect(midtop=(cx, plot.bottom + 8)))
         if peak == 0:

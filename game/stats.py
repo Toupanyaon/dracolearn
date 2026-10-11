@@ -12,6 +12,7 @@ from typing import List, Optional
 from . import content
 
 WEEKDAYS_TH = ["จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส.", "อา."]
+WEEKDAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _AXIS_STEPS = [10, 20, 30, 50, 80, 100, 150, 200, 300, 500, 800, 1000]
 
 

@@ -79,7 +79,8 @@ def _progress_value(kind: str, data: dict):
     if kind == "lessons":
         return len(set(data.get("completed_lessons", [])))
     if kind == "survival_level":
-        return int(data.get("survival_best_level", 0) or 0)
+        from . import storage  # นำเข้าตอนใช้งาน: ระดับสูงสุดที่เคยไปถึงในคอร์สไหนก็ได้
+        return max(storage.survival_stat(data, c)[1] for c in content.COURSES)
     return 0
 
 

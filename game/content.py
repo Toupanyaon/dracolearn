@@ -230,7 +230,9 @@ _CONTRACTIONS = {
 
 def normalize_answer(text: str) -> str:
     t = text.strip().lower().replace("\u2019", "'").replace("\u2018", "'")
-    t = re.sub(r"[^\w\s']", " ", t)          # ตัดเครื่องหมายวรรคตอน (เก็บ ' ไว้ให้ตัวย่อ)
+    # ตัดเครื่องหมายวรรคตอน (เก็บ ' ไว้ให้ตัวย่อ) และ "ต้องเก็บอักษรไทยทั้งบล็อกไว้": สระบน/วรรณยุกต์ (ิ ้ ์ ั) ไม่นับเป็น \w
+    # ถ้าไม่ยกเว้นไว้ จะถูกตัดทิ้งจน "สวัสดี" กลายเป็น "สว สด" แล้วตรวจคำตอบภาษาไทยผิดทั้งหมด
+    t = re.sub(r"[^\w\s'\u0e00-\u0e7f]", " ", t)
     words = [_CONTRACTIONS.get(w, w) for w in t.split()]
     return " ".join(words)
 
@@ -290,24 +292,10 @@ for _unit in UNITS:
         _lesson.question_ids = (list(_lesson.question_ids) + EXTRA_LESSON_QUESTION_IDS.get(_lesson.id, [])
                                + LISTENING_LESSON_QUESTION_IDS.get(_lesson.id, []))
 
-UNIT_MAP = {u.id: u for u in UNITS}
-
-# qid -> (Unit, Lesson) ของข้อที่อยู่ในบทเรียนปกติ (ข้อที่ซ้ำหลายบทจะเก็บบทแรกที่พบ) ใช้หน้าสถิติ
-QUESTION_HOME = {}
-for _u in UNITS:
-    for _l in _u.lessons:
-        for _qid in _l.question_ids:
-            QUESTION_HOME.setdefault(_qid, (_u, _l))
-
-
 def unit_id_of_question(qid: str) -> str:
     """Unit ที่ข้อนี้สังกัด; ข้อที่ไม่อยู่ในบทเรียน (คลัง Challenger) คืน "challenger" """
     home = QUESTION_HOME.get(qid)
     return home[0].id if home else "challenger"
-
-# รหัสข้อทั้งหมดที่ใช้ในบทเรียนปกติ (ไม่รวมคลัง Challenger) - ใช้เป็นคลังสำรองของโหมดฝึกฝนฟื้นฟูหัวใจ
-LESSON_QUESTION_IDS = frozenset(qid for _u in UNITS for _l in _u.lessons for qid in _l.question_ids)
-
 
 def lesson_questions() -> List[Question]:
     """โจทย์ทั้งหมดที่อยู่ในบทเรียนปกติ (ไม่รวมโจทย์เฉพาะโหมด Challenger)"""
@@ -370,9 +358,6 @@ def _build_difficulty_levels() -> dict:
     return levels
 
 
-QUESTION_LEVEL = _build_difficulty_levels()
-
-
 def question_difficulty(question: "Question") -> int:
     """ระดับความยาก 1 (ง่ายสุด) .. DIFFICULTY_LEVELS (ยากสุด) ของโจทย์ข้อนั้น"""
     return QUESTION_LEVEL[question.id]
@@ -409,19 +394,11 @@ def _build_lesson_hues() -> dict:
     return {l.id: (HUE_OFFSET + i * step) % 360 for i, (_, l) in enumerate(lessons)}
 
 
-LESSON_HUE = _build_lesson_hues()
-
-
 def lesson_background(lesson, question_index: int = 0) -> tuple:
     """คืน (สีบน, สีล่าง) พาสเทลของพื้นหลัง ตามบทเรียนและลำดับข้อ (ข้อคี่/คู่สลับโทนกัน)"""
     hue = LESSON_HUE.get(lesson.id, HUE_OFFSET)
     (st, vt), (sb, vb) = PASTEL_TONES[question_index % len(PASTEL_TONES)]
     return _pastel(hue, st, vt), _pastel(hue, sb, vb)
-
-
-# สีประจำ Unit = สีของบทเรียนบทกลาง (ใช้ทำป้ายชื่อ Unit ในหน้าเส้นทางการเรียน)
-for _u in UNITS:
-    _u.bg_top, _u.bg_bottom = lesson_background(_u.lessons[len(_u.lessons) // 2], 0)
 
 
 def all_lessons_flat():
@@ -450,3 +427,84 @@ ACHIEVEMENTS: List[Achievement] = [
     Achievement("wardrobe_complete", "นักสะสมแฟชั่นตัวยง", "ปลดล็อกของแต่งตัวให้ครบทุกชิ้นในตู้เสื้อผ้า", "closet"),
 ]
 ACHIEVEMENT_MAP = {a.id: a for a in ACHIEVEMENTS}
+
+
+# ---------------------------------------------------------------------------
+# คอร์สที่เรียน (หลายภาษา)
+#   "en" = เรียนภาษาอังกฤษ (โจทย์/เมนูเป็นไทย)  <- ค่าเริ่มต้น  "th" = เรียนภาษาไทย (โจทย์/เมนูเป็นอังกฤษ)
+# ข้อมูลของตัวเกม (UNITS, QUESTIONS, QUESTION_MAP ...) เป็นตัวแปรระดับโมดูล เปลี่ยนด้วย set_course() ซึ่งแทนที่ทั้งชุดแล้วคำนวณตารางอนุพันธ์ใหม่
+# โค้ดส่วนอื่นเรียก content.UNITS ฯลฯ ตอนใช้งาน (ไม่ import ค่าไปเก็บไว้) จึงเห็นคอร์สปัจจุบันเสมอ
+# ---------------------------------------------------------------------------
+COURSES = {
+    "en": {"name": "English", "learn_lang": "en", "ui_lang": "th"},
+    "th": {"name": "Thai", "learn_lang": "th", "ui_lang": "en"},
+}
+DEFAULT_COURSE = "en"
+COURSE = DEFAULT_COURSE
+LEARN_LANG = "en"   # ภาษาที่กำลังเรียน: ใช้เลือกเสียง TTS ของคำตอบ/ตัวเลือก
+UI_LANG = "th"      # ภาษาของเมนู/คำอธิบายในเกม (i18n.py แปลให้ตามค่านี้)
+
+_EN_DATA = {"QUESTIONS": QUESTIONS, "UNITS": UNITS, "CHALLENGER_QUESTION_IDS": CHALLENGER_QUESTION_IDS,
+            "AUTO_LEVELS": AUTO_LEVELS}
+
+
+def _derive():
+    """สร้างตารางอนุพันธ์ทั้งหมดใหม่จาก QUESTIONS/UNITS ปัจจุบัน (เรียกตอน import และทุกครั้งที่เปลี่ยนคอร์ส)"""
+    global QUESTION_MAP, UNIT_MAP, QUESTION_HOME, LESSON_QUESTION_IDS, QUESTION_LEVEL, LESSON_HUE
+    QUESTION_MAP = {q.id: q for q in QUESTIONS}
+    UNIT_MAP = {u.id: u for u in UNITS}
+    # qid -> (Unit, Lesson) ของข้อที่อยู่ในบทเรียนปกติ (ข้อที่ซ้ำหลายบทจะเก็บบทแรกที่พบ) ใช้หน้าสถิติ
+    QUESTION_HOME = {}
+    for u in UNITS:
+        for l in u.lessons:
+            for qid in l.question_ids:
+                QUESTION_HOME.setdefault(qid, (u, l))
+    # รหัสข้อทั้งหมดที่ใช้ในบทเรียนปกติ (ไม่รวมคลัง Challenger) - ใช้เป็นคลังสำรองของโหมดฝึกฝนฟื้นฟูหัวใจ
+    LESSON_QUESTION_IDS = frozenset(QUESTION_HOME)
+    QUESTION_LEVEL = _build_difficulty_levels()
+    LESSON_HUE = _build_lesson_hues()
+    # สีประจำ Unit = สีของบทเรียนบทกลาง (ใช้ทำป้ายชื่อ Unit ในหน้าเส้นทางการเรียน)
+    for u in UNITS:
+        u.bg_top, u.bg_bottom = lesson_background(u.lessons[len(u.lessons) // 2], 0)
+
+
+def set_course(code) -> str:
+    """เปลี่ยนคอร์สที่เรียน คืนรหัสคอร์สที่ใช้งานจริง รหัสแปลก ๆ/ค่าเสียหาย (เช่นจากไฟล์เซฟ) ถอยกลับเป็นคอร์สเริ่มต้น ไม่ crash"""
+    global QUESTIONS, UNITS, CHALLENGER_QUESTION_IDS, AUTO_LEVELS, COURSE, LEARN_LANG, UI_LANG
+    if not isinstance(code, str) or code not in COURSES:
+        code = DEFAULT_COURSE
+    if code == "th":
+        from . import course_th
+        data = {"QUESTIONS": course_th.QUESTIONS, "UNITS": course_th.UNITS,
+                "CHALLENGER_QUESTION_IDS": course_th.CHALLENGER_QUESTION_IDS, "AUTO_LEVELS": course_th.AUTO_LEVELS}
+    else:
+        data = _EN_DATA
+    QUESTIONS, UNITS = data["QUESTIONS"], data["UNITS"]
+    CHALLENGER_QUESTION_IDS, AUTO_LEVELS = data["CHALLENGER_QUESTION_IDS"], data["AUTO_LEVELS"]
+    COURSE = code
+    LEARN_LANG = COURSES[code]["learn_lang"]
+    UI_LANG = COURSES[code]["ui_lang"]
+    _derive()
+    return code
+
+
+def course_of_profile(data) -> str:
+    """คอร์สที่โปรไฟล์นี้เลือกไว้ (ค่าเสียหาย/ไม่มี = คอร์สเริ่มต้น)"""
+    code = data.get("course") if isinstance(data, dict) else None
+    return code if isinstance(code, str) and code in COURSES else DEFAULT_COURSE
+
+
+def next_course(code: str) -> str:
+    """คอร์สถัดไปเมื่อกดปุ่มสลับคอร์ส (วนตามลำดับใน COURSES)"""
+    keys = list(COURSES)
+    return keys[(keys.index(code) + 1) % len(keys)] if code in keys else DEFAULT_COURSE
+
+
+def detect_lang(text: str):
+    """ภาษาของข้อความสำหรับเลือกเสียง TTS: "th" ถ้ามีอักษรไทย, "en" ถ้าเป็น ASCII ล้วน, ไม่งั้น None"""
+    if any("\u0e00" <= ch <= "\u0e7f" for ch in text):
+        return "th"
+    return "en" if text and text.isascii() else None
+
+
+_derive()
